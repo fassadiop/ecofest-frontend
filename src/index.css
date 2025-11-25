@@ -1,0 +1,6 @@
+﻿@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* small helper to center demo */
+body { @apply bg-gray-50; }
