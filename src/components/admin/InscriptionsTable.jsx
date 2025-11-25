@@ -13,7 +13,7 @@ export default function InscriptionsTable() {
     setError(null);
     try {
       // ADAPTE l'URL si nécessaire. Si ton backend expose /api/inscriptions/ utilisez-le.
-      const url = `/api/admin/inscriptions?status=${encodeURIComponent(status)}&country=${encodeURIComponent(country)}`;
+      const url = `${API_URL}/admin/inscriptions?status=${encodeURIComponent(status)}&country=${encodeURIComponent(country)}`;
       const res = await fetch(url);
       if (!res.ok) {
         const text = await res.text();

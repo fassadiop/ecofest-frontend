@@ -61,7 +61,7 @@ export default function Register(){
   }
 
   return (
-    <Layout>
+    <div>
       <div className="flex items-center gap-4">
         <img src={LOGO} alt="Ecofest logo" className="w-24 h-24 object-contain" />
         <div>
@@ -150,6 +150,6 @@ export default function Register(){
           </button>
         </div>
       </form>
-    </Layout>
+    </div>
   )
 }

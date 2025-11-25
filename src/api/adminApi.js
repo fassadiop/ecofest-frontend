@@ -1,5 +1,7 @@
+import { API_URL } from "./config";
+
 export async function fetchAdminInscriptions(accessToken){
-  const res = await fetch('http://127.0.0.1:8000/api/admin/inscriptions/', {
+  const res = await fetch(`${API_URL}/admin/inscriptions/`, {
     headers: { Authorization: `Bearer ${accessToken}` }
   })
   if(!res.ok) {
@@ -10,7 +12,7 @@ export async function fetchAdminInscriptions(accessToken){
 }
 
 export async function patchInscriptionStatus(accessToken, id, statut, admin_remarque=''){
-  const res = await fetch(`http://127.0.0.1:8000/api/admin/inscriptions/${id}/status/`, {
+  const res = await fetch(`${API_URL}/admin/inscriptions/${id}/status/`, {
     method: 'PATCH',
     headers: { 'Content-Type':'application/json', Authorization: `Bearer ${accessToken}` },
     body: JSON.stringify({ statut, admin_remarque })

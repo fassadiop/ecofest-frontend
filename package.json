@@ -4,9 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "predev": "powershell -Command \"if (Get-NetTCPConnection -LocalPort 5173 -ErrorAction SilentlyContinue) { $p=(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match '5173' -or $_.CommandLine -match 'vite' } | Select-Object -First 1).ProcessId; if ($p) { Stop-Process -Id $p -Force } }\"",
+    "dev": "vite"
   },
   "dependencies": {
     "i18next": "^23.10.1",

@@ -1,5 +1,6 @@
 // src/api/publicApi.js
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://127.0.0.1:8000";
+
+export const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 
 export async function createPublicInscription(payload) {
   const form = new FormData();
@@ -7,7 +8,7 @@ export async function createPublicInscription(payload) {
     if (v !== undefined && v !== null) form.append(k, v);
   });
 
-  const res = await fetch(`${API_BASE}/api/inscriptions/`, {
+  const res = await fetch(`${API_BASE}/inscriptions/`, {
     method: "POST",
     body: form
   });
@@ -19,7 +20,7 @@ export async function createPublicInscription(payload) {
 }
 
 export async function resendConfirmation(inscriptionId) {
-  const res = await fetch(`${API_BASE}/api/inscriptions/${inscriptionId}/resend_confirmation/`, {
+  const res = await fetch(`${API_BASE}/inscriptions/${inscriptionId}/resend_confirmation/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" }
   });

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { API_URL } from "./config";
 
 export default function StatsDashboard() {
   const [stats, setStats] = useState(null);
@@ -11,7 +12,7 @@ export default function StatsDashboard() {
     setError(null);
     try {
       // <-- ADAPTE L'URL si besoin: utiliser http://127.0.0.1:8000 si proxy pas configuré
-      const res = await fetch("/api/admin/statistics");
+      const res = await fetch(`${API_URL}/admin/statistics`);
       if (!res.ok) {
         const text = await res.text();
         throw new Error(`${res.status} ${res.statusText} — ${text.slice(0,200)}`);
