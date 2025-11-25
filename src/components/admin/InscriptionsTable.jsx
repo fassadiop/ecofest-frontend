@@ -60,7 +60,7 @@ export default function InscriptionsTable() {
           <tr>
             <th className="p-2 border">Nom</th>
             <th className="p-2 border">Profil</th>
-            <th className="p-2 border">Pays</th>
+            <th className="p-2 border">Provenance</th>
             <th className="p-2 border">Statut</th>
             <th className="p-2 border">Actions</th>
           </tr>
@@ -71,7 +71,7 @@ export default function InscriptionsTable() {
             <tr key={item.id} className="text-sm">
               <td className="p-2 border">{item.nom} {item.prenoms}</td>
               <td className="p-2 border">{item.profil}</td>
-              <td className="p-2 border">{item.pays}</td>
+              <td className="p-2 border">{item.provenance}</td>
               <td className="p-2 border">{item.statut}</td>
               <td className="p-2 border flex gap-2">
                 <button className="px-2 py-1 border rounded">Détails</button>

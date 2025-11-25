@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { patchInscriptionStatus, downloadFile } from '../api/adminApi'
 import { useAuth } from '../auth/AuthProvider'
+import { API_URL } from "../api/config";
 
 export default function AdminTable({ data, reload }){
   const auth = useAuth()
@@ -32,12 +33,12 @@ export default function AdminTable({ data, reload }){
 
   const handleDownloadBadge = async (id) =>{
     try{
-      await downloadFile(access, `http://127.0.0.1:8000/api/admin/inscriptions/${id}/badge/`, `badge_${id}.png`)
+      await downloadFile(access, `${API_URL}/admin/inscriptions/${id}/badge/`, `badge_${id}.png`)
     }catch(err){ alert('Download failed: '+err.message) }
   }
   const handleDownloadInvitation = async (id) =>{
     try{
-      await downloadFile(access, `http://127.0.0.1:8000/api/admin/inscriptions/${id}/invitation/`, `invitation_${id}.pdf`)
+      await downloadFile(access, `${API_URL}/admin/inscriptions/${id}/invitation/`, `invitation_${id}.pdf`)
     }catch(err){ alert('Download failed: '+err.message) }
   }
 

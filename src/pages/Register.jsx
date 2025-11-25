@@ -114,11 +114,9 @@ export default function Register(){
         <div className="md:col-span-2">
           <label className="block text-sm font-medium text-gray-700">{t('fields.profileType')}</label>
           <select name="type_profil" value={form.type_profil} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2">
-            <option value="All Access">{t('profiles.allaccess') || 'All Access'}</option>
-            <option value="VIP">{t('profiles.vip')}</option>
+            <option value="Festivaliers">{t('profiles.festivalier') || 'Festivaliers'}</option>
             <option value="Presse">{t('profiles.press')}</option>
-            <option value="Staff">{t('profiles.staff')}</option>
-            <option value="Équipe technique">{t('profiles.tech')}</option>
+            <option value="Artistes professionnels">{t('profiles.artisteprofessionnels')}</option>
           </select>
         </div>
 

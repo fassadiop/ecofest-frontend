@@ -22,11 +22,9 @@ const resources = {
         dob: "Date of birth",
       },
       profiles: {
-        vip: "VIP",
+        festivalier: "Festival-goers",
         press: "Press",
-        allaccess: "All Access",
-        staff: "Staff",
-        tech: "Technical Team"
+        artistesprofessionnels: "Professional artists",
       }
     }
   },
@@ -50,11 +48,9 @@ const resources = {
         dob: "Date de naissance",
       },
       profiles: {
-        vip: "VIP",
+        festivalier: "Festivaliers",
         press: "Presse",
-        allaccess: "All Access",
-        staff: "Staff",
-        tech: "Équipe technique"
+        artistesprofessionnels: "Artistes professionnels",
       }
     }
   },
@@ -78,11 +74,9 @@ const resources = {
         dob: "Data de nascimento",
       },
       profiles: {
-        vip: "VIP",
+        festivalier: "Frequentadores do festival",
         press: "Imprensa",
-        allaccess: "All Access",
-        staff: "Staff",
-        tech: "Equipe técnica"
+        artistesprofessionnels: "Artistas profissionais",
       }
     }
   }
