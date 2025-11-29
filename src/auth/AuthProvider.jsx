@@ -1,133 +1,89 @@
 // src/auth/AuthProvider.jsx
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { API_URL } from "../api/config";
 
 const AuthContext = createContext(null);
 
-export function useAuth() {
-  return useContext(AuthContext);
-}
-
-/**
- * Helper: decode JWT payload (safe)
- */
+// helper decode
 function decodeJwt(token) {
   try {
     const part = token.split(".")[1];
     if (!part) return null;
     const b64 = part.replace(/-/g, "+").replace(/_/g, "/");
     const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
-    const json = atob(padded);
-    return JSON.parse(json);
+    return JSON.parse(atob(padded));
   } catch (e) {
     return null;
   }
 }
 
 /**
- * AuthProvider: manages tokens + current user + auto-refresh.
- *
- * Assumptions:
- * - token endpoints:
- *   POST  ${API_URL}/token/            -> { access, refresh }
- *   POST  ${API_URL}/token/refresh/    -> { access }
- * - optional endpoint: GET ${API_URL}/api/auth/me/ -> returns user object (id, username, role, is_staff, is_superuser...)
- * Adapt endpoints if yours differ.
+ * Named export: AuthProvider
+ * Also default-exported at the bottom to avoid import errors.
  */
 export function AuthProvider({ children }) {
+  const navigate = useNavigate();
   const [access, setAccess] = useState(() => localStorage.getItem("access"));
   const [refresh, setRefresh] = useState(() => localStorage.getItem("refresh"));
   const [user, setUser] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("user"));
-    } catch { return null; }
+    try { return JSON.parse(localStorage.getItem("user")); } catch { return null; }
   });
   const [loading, setLoading] = useState(false);
-  const refreshTimeoutRef = useRef(null);
+  const refreshTimer = useRef(null);
 
-  const saveTokens = (newAccess, newRefresh) => {
-    if (newAccess) {
-      localStorage.setItem("access", newAccess);
-      setAccess(newAccess);
-    }
-    if (newRefresh) {
-      localStorage.setItem("refresh", newRefresh);
-      setRefresh(newRefresh);
-    }
-  };
+  const saveTokens = useCallback((newAccess, newRefresh) => {
+    if (newAccess) { localStorage.setItem("access", newAccess); setAccess(newAccess); } else { localStorage.removeItem("access"); setAccess(null); }
+    if (newRefresh) { localStorage.setItem("refresh", newRefresh); setRefresh(newRefresh); } else { localStorage.removeItem("refresh"); setRefresh(null); }
+  }, []);
 
-  const clearAll = () => {
-    localStorage.removeItem("access");
-    localStorage.removeItem("refresh");
-    localStorage.removeItem("user");
-    setAccess(null);
-    setRefresh(null);
-    setUser(null);
-    if (refreshTimeoutRef.current) {
-      clearTimeout(refreshTimeoutRef.current);
-      refreshTimeoutRef.current = null;
-    }
-  };
-
-  const scheduleRefresh = useCallback((token) => {
-    // schedule refresh 60s before expiry
-    try {
-      if (!token) return;
-      const payload = decodeJwt(token);
-      if (!payload || !payload.exp) return;
-      const expiresAt = payload.exp * 1000;
-      const now = Date.now();
-      const ms = Math.max(1000, expiresAt - now - 60 * 1000); // at least 1s
-      if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
-      refreshTimeoutRef.current = setTimeout(() => {
-        refreshAccess().catch(() => { /* ignore */ });
-      }, ms);
-    } catch (e) {
-      // ignore scheduling errors
-    }
+  const clearAll = useCallback(() => {
+    localStorage.removeItem("access"); localStorage.removeItem("refresh"); localStorage.removeItem("user");
+    setAccess(null); setRefresh(null); setUser(null);
+    if (refreshTimer.current) { clearTimeout(refreshTimer.current); refreshTimer.current = null; }
   }, []);
 
   const fetchMe = useCallback(async (tok) => {
     if (!tok) return null;
-    // Prefer backend /api/auth/me/ which should return role and flags
     try {
-      const res = await fetch(`${API_URL}/auth/me/`, {
-        headers: { Authorization: `Bearer ${tok}` }
-      });
+      const res = await fetch(`${API_URL}/auth/me/`, { headers: { Authorization: `Bearer ${tok}` } });
       if (res.ok) {
         const j = await res.json();
-        localStorage.setItem("user", JSON.stringify(j));
+        try { localStorage.setItem("user", JSON.stringify(j)); } catch {}
         setUser(j);
         return j;
       }
-    } catch (err) {
-      // ignore; fallback below
-    }
-    // fallback: try decode token payload for user-like fields
-    try {
-      const payload = decodeJwt(tok);
-      if (payload) {
-        const normalized = {
-          username: payload.username || payload.user || payload.sub,
-          email: payload.email,
-          role: payload.role || payload.roles || payload.user_role || null,
-          is_staff: payload.is_staff || false,
-          is_superuser: payload.is_superuser || false,
-          raw_payload: payload,
-        };
-        localStorage.setItem("user", JSON.stringify(normalized));
-        setUser(normalized);
-        return normalized;
-      }
     } catch (e) { /* ignore */ }
+    // fallback decode
+    const payload = decodeJwt(tok);
+    if (payload) {
+      const normalized = {
+        username: payload.username || payload.user || payload.sub,
+        email: payload.email,
+        role: payload.role || payload.roles || payload.user_role || null,
+        is_staff: payload.is_staff || false,
+        is_superuser: payload.is_superuser || false,
+        raw_payload: payload,
+      };
+      try { localStorage.setItem("user", JSON.stringify(normalized)); } catch {}
+      setUser(normalized);
+      return normalized;
+    }
     return null;
   }, []);
 
+  const scheduleRefresh = useCallback((tok) => {
+    if (refreshTimer.current) { clearTimeout(refreshTimer.current); refreshTimer.current = null; }
+    if (!tok) return;
+    const p = decodeJwt(tok);
+    if (!p || !p.exp) return;
+    const expiresAt = p.exp * 1000;
+    const ms = Math.max(1000, expiresAt - Date.now() - 60 * 1000); // refresh 60s before expiry
+    refreshTimer.current = setTimeout(() => { refreshAccess().catch(() => {}); }, ms);
+  }, []);
+
   const refreshAccess = useCallback(async () => {
-    if (!refresh) {
-      clearAll();
-      return null;
-    }
+    if (!refresh) { clearAll(); return null; }
     try {
       const res = await fetch(`${API_URL}/token/refresh/`, {
         method: "POST",
@@ -137,23 +93,21 @@ export function AuthProvider({ children }) {
       if (res.ok) {
         const j = await res.json();
         if (j.access) {
-          saveTokens(j.access, null);
+          saveTokens(j.access, j.refresh || refresh);
           scheduleRefresh(j.access);
-          // optionally re-fetch user if payload changed
           await fetchMe(j.access);
           return j.access;
         }
       } else {
-        // refresh invalid -> clear
         clearAll();
       }
     } catch (e) {
       console.error("refreshAccess error", e);
+      clearAll();
     }
     return null;
-  }, [refresh, fetchMe, scheduleRefresh]);
+  }, [refresh, clearAll, fetchMe, saveTokens, scheduleRefresh]);
 
-  // login(username/password) -> store tokens and load user
   const login = useCallback(async ({ username, password }) => {
     setLoading(true);
     try {
@@ -164,77 +118,61 @@ export function AuthProvider({ children }) {
       });
       const j = await res.json();
       if (!res.ok) {
-        const msg = j.detail || (j.error || JSON.stringify(j));
+        const msg = j.detail || j.error || JSON.stringify(j);
         throw new Error(msg);
       }
-      // expected: { access, refresh }
       if (j.access) saveTokens(j.access, j.refresh || null);
       await fetchMe(j.access);
       scheduleRefresh(j.access);
       setLoading(false);
-      return { ok: true, data: j };
+      navigate("/admin");
+      return { ok: true };
     } catch (err) {
       setLoading(false);
       clearAll();
       throw err;
     }
-  }, [fetchMe, scheduleRefresh]);
+  }, [fetchMe, saveTokens, scheduleRefresh, clearAll, navigate]);
 
   const logout = useCallback(() => {
     clearAll();
-    // optionally notify backend here
-    // e.g. POST /api/auth/logout/ with refresh token invalidation
-  }, []);
+    navigate("/admin/login");
+  }, [clearAll, navigate]);
 
-  // helper for adding auth header quickly
-  const getAuthHeaders = useCallback(() => {
-    return access ? { Authorization: `Bearer ${access}` } : {};
-  }, [access]);
-
-  // load user on mount if token exists
+  // startup: populate user and schedule refresh
   useEffect(() => {
     (async () => {
+      const tok = access || localStorage.getItem("access");
+      if (!tok) { clearAll(); return; }
       try {
-        const tok = access || localStorage.getItem("access");
-        if (!tok) {
-          clearAll();
-          return;
-        }
-        // populate user from cache first (fast)
-        try {
-          const cached = localStorage.getItem("user");
-          if (cached) {
-            setUser(JSON.parse(cached));
-          }
-        } catch (e) { /* ignore */ }
-
-        await fetchMe(tok);
-        scheduleRefresh(tok);
-      } catch (e) {
-        // ignore startup errors
-      }
+        const cached = localStorage.getItem("user");
+        if (cached) setUser(JSON.parse(cached));
+      } catch {}
+      await fetchMe(tok);
+      scheduleRefresh(tok);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // cleanup on unmount
   useEffect(() => {
-    return () => {
-      if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
-    };
+    return () => { if (refreshTimer.current) clearTimeout(refreshTimer.current); };
   }, []);
 
   const value = {
     user,
     access,
     refresh,
-    loading,
     login,
     logout,
     refreshAccess,
     fetchMe,
-    getAuthHeaders
+    getAuthHeaders: () => (access ? { Authorization: `Bearer ${access}` } : {}),
+    isAuthenticated: !!user
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
+
+// named and default export to cover any import style
+export function useAuth() { const ctx = useContext(AuthContext); if (!ctx) throw new Error("useAuth must be used inside AuthProvider"); return ctx; }
+export default AuthProvider;
