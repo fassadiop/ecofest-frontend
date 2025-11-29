@@ -606,7 +606,7 @@ export default function AdminTable({ data, reload }) {
                     }}>Voir pièces</button>
 
                     {/* Admin-only actions */}
-                    {currentRole === 'Admin' && (
+                    {/*currentRole === 'Admin' &&*/ (
                       <>
                         <button className="bg-green-600 text-white px-2 py-1 rounded text-sm" disabled={loadingId === item.id}
                                       onClick={() => doAction(item.id, validateInscription)}>Valider</button>
