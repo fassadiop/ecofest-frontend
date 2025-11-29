@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import Layout from '../components/Layout'
-import { API_URL } from "./config";
+import { API_URL } from "../api/config";
 
 export default function Login(){
   const [username,setUsername] = useState('')

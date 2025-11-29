@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 // Pages
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
+import UsersPage from "./pages/admin/UsersPage";
 import Register from "./pages/Register";
 import ThankYou from "./pages/ThankYou";
 
@@ -14,33 +15,52 @@ import Layout from "./pages/Layout";
 import ProtectedRoute from "./components/ProtectedRoute"; // wrapper qui vérifie auth
 
 export default function App() {
-  const { t } = useTranslation(); // si tu utilises i18n
+  const { t } = useTranslation();
 
   return (
-    <Layout>
-      <Routes>
-        {/* Page publique d'inscription */}
-        <Route path="/" element={<Register />} />
+    <Routes>
+      {/* Public routes wrapped with global Layout */}
+      <Route
+        path="/"
+        element={
+          <Layout variant="public">
+            <Register />
+          </Layout>
+        }
+      />
+      <Route
+        path="/thank-you"
+        element={
+          <Layout variant="default">
+            <ThankYou />
+          </Layout>
+        }
+      />
 
-        {/* page de remerciement */}
-        <Route path="/thank-you" element={<ThankYou />} />
+      {/* Admin login (no global Layout) */}
+      <Route path="/admin/login" element={<AdminLogin />} />
 
-        {/* Auth admin */}
-        <Route path="/admin/login" element={<AdminLogin />} />
+      {/* Protected admin routes — distinct routes */}
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute>
+            <AdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/users"
+        element={
+          <ProtectedRoute>
+            <UsersPage />
+          </ProtectedRoute>
+        }
+      />
 
-        {/* Dashboard admin protégé */}
-        <Route
-          path="/admin"
-          element={
-            <ProtectedRoute>
-              <AdminDashboard />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* fallback */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Layout>
+      {/* fallback */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
+

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { API_URL } from "../api/config";
 
 export default function InscriptionsTable() {
   const [data, setData] = useState([]);

@@ -10,7 +10,7 @@ export default function SidebarAdmin() {
       <nav className="flex flex-col gap-2">
         <a className="hover:text-blue-600" href="/admin">Dashboard</a>
         <a className="hover:text-blue-600" href="/admin/inscriptions">Inscriptions</a>
-        <a className="hover:text-blue-600" href="/admin/paiements">Paiements</a>
+        <a className="hover:text-blue-600" href="/admin/users">Utilisateurs</a>
         <a className="hover:text-blue-600" href="/admin/export">Exports</a>
       </nav>
     </div>

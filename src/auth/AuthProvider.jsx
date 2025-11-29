@@ -1,137 +1,240 @@
 // src/auth/AuthProvider.jsx
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
+import { API_URL } from "../api/config";
 
-/** Petit jwtDecode local (évite dépendance et compat issues) */
-function jwtDecode(token) {
+const AuthContext = createContext(null);
+
+export function useAuth() {
+  return useContext(AuthContext);
+}
+
+/**
+ * Helper: decode JWT payload (safe)
+ */
+function decodeJwt(token) {
   try {
-    const payload = token.split(".")[1];
-    const b64 = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const pad = b64.length % 4;
-    const padded = pad ? b64 + "=".repeat(4 - pad) : b64;
+    const part = token.split(".")[1];
+    if (!part) return null;
+    const b64 = part.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
     const json = atob(padded);
-    // decodeURIComponent/escape to handle utf8
-    try {
-      return JSON.parse(decodeURIComponent(escape(json)));
-    } catch {
-      return JSON.parse(json);
-    }
+    return JSON.parse(json);
   } catch (e) {
-    console.warn("jwtDecode failed", e);
     return null;
   }
 }
 
-export const AuthContext = createContext(null);
-
+/**
+ * AuthProvider: manages tokens + current user + auto-refresh.
+ *
+ * Assumptions:
+ * - token endpoints:
+ *   POST  ${API_URL}/token/            -> { access, refresh }
+ *   POST  ${API_URL}/token/refresh/    -> { access }
+ * - optional endpoint: GET ${API_URL}/api/auth/me/ -> returns user object (id, username, role, is_staff, is_superuser...)
+ * Adapt endpoints if yours differ.
+ */
 export function AuthProvider({ children }) {
-  const navigate = useNavigate();
   const [access, setAccess] = useState(() => localStorage.getItem("access"));
   const [refresh, setRefresh] = useState(() => localStorage.getItem("refresh"));
-  const [user, setUser] = useState(() => (access ? jwtDecode(access) : null));
-  const [loading, setLoading] = useState(false);
-
-  const saveTokens = (a, r) => {
-    if (a) localStorage.setItem("access", a);
-    else localStorage.removeItem("access");
-    if (r) localStorage.setItem("refresh", r);
-    else localStorage.removeItem("refresh");
-    setAccess(a || null);
-    setRefresh(r || null);
-    setUser(a ? jwtDecode(a) : null);
-  };
-
-  const clearTokens = () => {
-    localStorage.removeItem("access");
-    localStorage.removeItem("refresh");
-    setAccess(null);
-    setRefresh(null);
-    setUser(null);
-  };
-
-  const login = async ({ username, password }) => {
-    setLoading(true);
+  const [user, setUser] = useState(() => {
     try {
-      const res = await fetch(`${API_URL}/token/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(errText || "Login failed");
-      }
-      const data = await res.json();
-      saveTokens(data.access, data.refresh);
-      setLoading(false);
-      navigate("/admin");
-    } catch (err) {
-      setLoading(false);
-      clearTokens();
-      throw err;
+      return JSON.parse(localStorage.getItem("user"));
+    } catch { return null; }
+  });
+  const [loading, setLoading] = useState(false);
+  const refreshTimeoutRef = useRef(null);
+
+  const saveTokens = (newAccess, newRefresh) => {
+    if (newAccess) {
+      localStorage.setItem("access", newAccess);
+      setAccess(newAccess);
+    }
+    if (newRefresh) {
+      localStorage.setItem("refresh", newRefresh);
+      setRefresh(newRefresh);
     }
   };
 
-  const logout = useCallback(() => {
-    clearTokens();
-    navigate("/admin/login");
-  }, [navigate]);
+  const clearAll = () => {
+    localStorage.removeItem("access");
+    localStorage.removeItem("refresh");
+    localStorage.removeItem("user");
+    setAccess(null);
+    setRefresh(null);
+    setUser(null);
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current);
+      refreshTimeoutRef.current = null;
+    }
+  };
+
+  const scheduleRefresh = useCallback((token) => {
+    // schedule refresh 60s before expiry
+    try {
+      if (!token) return;
+      const payload = decodeJwt(token);
+      if (!payload || !payload.exp) return;
+      const expiresAt = payload.exp * 1000;
+      const now = Date.now();
+      const ms = Math.max(1000, expiresAt - now - 60 * 1000); // at least 1s
+      if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+      refreshTimeoutRef.current = setTimeout(() => {
+        refreshAccess().catch(() => { /* ignore */ });
+      }, ms);
+    } catch (e) {
+      // ignore scheduling errors
+    }
+  }, []);
+
+  const fetchMe = useCallback(async (tok) => {
+    if (!tok) return null;
+    // Prefer backend /api/auth/me/ which should return role and flags
+    try {
+      const res = await fetch(`${API_URL}/auth/me/`, {
+        headers: { Authorization: `Bearer ${tok}` }
+      });
+      if (res.ok) {
+        const j = await res.json();
+        localStorage.setItem("user", JSON.stringify(j));
+        setUser(j);
+        return j;
+      }
+    } catch (err) {
+      // ignore; fallback below
+    }
+    // fallback: try decode token payload for user-like fields
+    try {
+      const payload = decodeJwt(tok);
+      if (payload) {
+        const normalized = {
+          username: payload.username || payload.user || payload.sub,
+          email: payload.email,
+          role: payload.role || payload.roles || payload.user_role || null,
+          is_staff: payload.is_staff || false,
+          is_superuser: payload.is_superuser || false,
+          raw_payload: payload,
+        };
+        localStorage.setItem("user", JSON.stringify(normalized));
+        setUser(normalized);
+        return normalized;
+      }
+    } catch (e) { /* ignore */ }
+    return null;
+  }, []);
 
   const refreshAccess = useCallback(async () => {
     if (!refresh) {
-      logout();
+      clearAll();
       return null;
     }
     try {
       const res = await fetch(`${API_URL}/token/refresh/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refresh }),
+        body: JSON.stringify({ refresh })
       });
-      if (!res.ok) throw new Error("Refresh failed");
-      const data = await res.json();
-      saveTokens(data.access, data.refresh ?? refresh);
-      return data.access;
-    } catch (err) {
-      logout();
-      return null;
+      if (res.ok) {
+        const j = await res.json();
+        if (j.access) {
+          saveTokens(j.access, null);
+          scheduleRefresh(j.access);
+          // optionally re-fetch user if payload changed
+          await fetchMe(j.access);
+          return j.access;
+        }
+      } else {
+        // refresh invalid -> clear
+        clearAll();
+      }
+    } catch (e) {
+      console.error("refreshAccess error", e);
     }
-  }, [refresh, logout]);
+    return null;
+  }, [refresh, fetchMe, scheduleRefresh]);
 
+  // login(username/password) -> store tokens and load user
+  const login = useCallback(async ({ username, password }) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/token/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password })
+      });
+      const j = await res.json();
+      if (!res.ok) {
+        const msg = j.detail || (j.error || JSON.stringify(j));
+        throw new Error(msg);
+      }
+      // expected: { access, refresh }
+      if (j.access) saveTokens(j.access, j.refresh || null);
+      await fetchMe(j.access);
+      scheduleRefresh(j.access);
+      setLoading(false);
+      return { ok: true, data: j };
+    } catch (err) {
+      setLoading(false);
+      clearAll();
+      throw err;
+    }
+  }, [fetchMe, scheduleRefresh]);
+
+  const logout = useCallback(() => {
+    clearAll();
+    // optionally notify backend here
+    // e.g. POST /api/auth/logout/ with refresh token invalidation
+  }, []);
+
+  // helper for adding auth header quickly
+  const getAuthHeaders = useCallback(() => {
+    return access ? { Authorization: `Bearer ${access}` } : {};
+  }, [access]);
+
+  // load user on mount if token exists
   useEffect(() => {
     (async () => {
       try {
-        if (!access && refresh) {
-          await refreshAccess();
-        } else if (access) {
-          const decoded = jwtDecode(access);
-          if (!decoded) {
-            await refreshAccess();
-            return;
-          }
-          const { exp } = decoded;
-          if (Date.now() >= exp * 1000) {
-            await refreshAccess();
-          } else {
-            setUser(decoded);
-          }
+        const tok = access || localStorage.getItem("access");
+        if (!tok) {
+          clearAll();
+          return;
         }
-      } catch {
-        clearTokens();
+        // populate user from cache first (fast)
+        try {
+          const cached = localStorage.getItem("user");
+          if (cached) {
+            setUser(JSON.parse(cached));
+          }
+        } catch (e) { /* ignore */ }
+
+        await fetchMe(tok);
+        scheduleRefresh(tok);
+      } catch (e) {
+        // ignore startup errors
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return (
-    <AuthContext.Provider value={{ access, refresh, user, loading, isAuthenticated: !!user, login, logout, refreshAccess }}>
-      {children}
-    </AuthContext.Provider>
-  );
-}
+  // cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+    };
+  }, []);
 
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used inside AuthProvider");
-  return ctx;
+  const value = {
+    user,
+    access,
+    refresh,
+    loading,
+    login,
+    logout,
+    refreshAccess,
+    fetchMe,
+    getAuthHeaders
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

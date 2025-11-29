@@ -24,8 +24,8 @@ export default function AdminLogin(){
       <div className="max-w-md w-full bg-white p-6 rounded-xl shadow">
         <h2 className="text-2xl font-bold mb-4">Admin Login</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <input value={username} onChange={e=>setUsername(e.target.value)} placeholder="Username" className="w-full p-2 border rounded" />
-          <input value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password" type="password" className="w-full p-2 border rounded" />
+          <input value={username} onChange={e=>setUsername(e.target.value)} placeholder="Username" type="text" className="w-full p-2 border rounded" autoComplete="username" />
+          <input value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password" type="password" className="w-full p-2 border rounded" autoComplete="current-password" />
           {error && <div className="text-red-600">{error}</div>}
           <div className="flex gap-2">
             <button type="submit" disabled={loading} className="flex-1 bg-blue-600 text-white p-2 rounded">{loading? '...' : 'Login'}</button>
