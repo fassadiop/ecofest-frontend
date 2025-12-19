@@ -5,9 +5,9 @@ import { createPublicInscription, resendConfirmation } from "../api/publicApi";
 
 const LOGO = '/images/logo-ecofest.jpeg'
 
-const MAX_PRENOM = 10;
-const MAX_NOM = 7;
-const MAX_COMBINED = 17;
+const MAX_PRENOM = 20;
+const MAX_NOM = 12;
+const MAX_COMBINED = 32;
 
 function formatName(str) {
   return str
@@ -92,22 +92,60 @@ export default function Register(){
       return;
     }
 
-    try{
-      const payload = { ...form }
-      if(passportFile) payload.passeport_file = passportFile
-      const inscription = await createPublicInscription(payload)
-      try { await resendConfirmation(inscription.id) } catch (resendErr) { console.error("Resend confirmation error:", resendErr) }
+    try {
+  const payload = { ...form };
+  if (passportFile) payload.passeport_file = passportFile;
 
-      setMessage(t('success') || "Inscription reçue — un email de confirmation a été envoyé.")
-      setForm({ nom:'', prenom:'', email:'', telephone:'', nationalite:'', provenance:'', type_profil:'Festivaliers', adresse_complete:'', date_naissance:'' })
-      setPassportFile(null)
-      setTimeout(()=> window.location.href = '/thank-you', 1400)
-    } catch(err){
-      console.error("submit error:", err)
-      setError(typeof err === 'string' ? err : (err.message || JSON.stringify(err)))
-    } finally {
-      setLoading(false)
+  const inscription = await createPublicInscription(payload);
+
+  // Envoi de l'email de confirmation
+  try { 
+    await resendConfirmation(inscription.id); 
+    } catch (resendErr) { 
+      console.error("Resend confirmation error:", resendErr); 
     }
+
+    setMessage(t('success') || "Inscription reçue — un email de confirmation a été envoyé.");
+
+    setForm({
+      nom:'', prenom:'', email:'', telephone:'', nationalite:'',
+      provenance:'', type_profil:'Festivaliers', adresse_complete:'',
+      date_naissance:''
+    });
+    setPassportFile(null);
+
+    setTimeout(() => window.location.href = '/thank-you', 1400);
+
+  } catch (err) {
+    console.error("submit error:", err);
+
+    // -------------------------------
+    // 🔥 Gestion propre des erreurs API DRF
+    // -------------------------------
+    if (err?.response?.data) {
+      const api = err.response.data;
+
+      // Si API renvoie { email: ["Cet email est déjà utilisé"] }
+      if (api.email) {
+        setError(api.email[0]);
+        return;
+      }
+
+      // Autres erreurs de formulaire DRF
+      if (typeof api === "object") {
+        const firstKey = Object.keys(api)[0];
+        setError(api[firstKey]);
+        return;
+      }
+    }
+
+    // Fallback: message générique
+    setError(err.message || "Une erreur est survenue lors de l'inscription.");
+
+  } finally {
+    setLoading(false);
+  }
+
   }
 
   return (
